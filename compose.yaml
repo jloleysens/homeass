@@ -16,7 +16,7 @@ volumes:
 
 networks:
   default:
-    name: elastic
+    name: home
     external: false
 
 services:
@@ -180,6 +180,8 @@ services:
       - /home/jloleysens/config:/config
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
+    ports:
+      - ${HASS_PORT}:8123
     restart: unless-stopped
     privileged: true
-    network_mode: host
+    #network_mode: host
