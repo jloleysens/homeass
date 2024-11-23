@@ -13,6 +13,8 @@ volumes:
     driver: local
   logstashdata01:
     driver: local
+  ollama:
+    driver: local
 
 networks:
   default:
@@ -88,6 +90,7 @@ services:
       - esdata01:/usr/share/elasticsearch/data
     ports:
       - ${ES_PORT}:9200
+    restart: unless-stopped
     environment:
       - node.name=es01
       - cluster.name=${CLUSTER_NAME}
@@ -166,13 +169,16 @@ services:
       - certs:/usr/share/logstash/certs
       - logstashdata01:/usr/share/logstash/data
       - "./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro"
+    restart: unless-stopped
     environment:
       - xpack.monitoring.enabled=false
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - ELASTIC_HOSTS=https://es01:9200
-      - HASS_URL=http://homeassistant:8123
+      - HASS_URL=http://host.docker.internal:8123
       - HASS_TOKEN=${HASS_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   filebeat01:
     container_name: filebeat01
@@ -187,6 +193,7 @@ services:
       - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
       - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    restart: unless-stopped
     environment:
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
@@ -213,6 +220,7 @@ services:
       - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
       - "/proc:/hostfs/proc:ro"
       - "/:/hostfs:ro"
+    restart: unless-stopped
     environment:
       - ELASTIC_USER=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
@@ -221,6 +229,19 @@ services:
       - LOGSTASH_HOSTS=http://logstash01:9600
 
   ########################### END OF ES STUFF
+  #ollama:
+  #  container_name: ollama
+  #  image: "ollama/ollama:latest"
+  #  volumes:
+  #    - ollama:/root/.ollama
+  #  ports:
+  #    - 11434:11434
+  #  restart: unless-stopped
+  #  pull_policy: always
+  #  tty: true
+  #  environment:
+  #    - OLLAMA_KEEP_ALIVE=24h
+  #    - OLLAMA_HOST=0.0.0.0
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -228,8 +249,10 @@ services:
       - /home/jloleysens/config:/config
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
-    ports:
-      - ${HASS_PORT}:8123
+        #ports:
+        #- ${HASS_PORT}:8123
+        #- 5353:5353
+        #- 21064:21064
     restart: unless-stopped
     privileged: true
-    #network_mode: host
+    network_mode: host
