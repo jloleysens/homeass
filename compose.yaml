@@ -15,6 +15,8 @@ volumes:
     driver: local
   ollama:
     driver: local
+  open-webui:
+    driver: local
 
 networks:
   default:
@@ -47,7 +49,7 @@ services:
           echo -ne \
           "instances:\n"\
           "  - name: es01\n"\
-          "    dns:\n"\
+         "    dns:\n"\
           "      - es01\n"\
           "      - localhost\n"\
           "    ip:\n"\
@@ -77,7 +79,7 @@ services:
       interval: 1s
       timeout: 5s
       retries: 120
-
+  
   es01:
     depends_on:
       setup:
@@ -109,6 +111,7 @@ services:
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
     mem_limit: ${ES_MEM_LIMIT}
+    memswap_limit: ${ES_MEM_SWAP_LIMIT}
     ulimits:
       memlock:
         soft: -1
@@ -122,7 +125,7 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
-
+  
   kibana:
     depends_on:
       es01:
@@ -179,56 +182,57 @@ services:
       - HASS_TOKEN=${HASS_TOKEN}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
-  filebeat01:
-    container_name: filebeat01
-    depends_on:
-      es01:
-        condition: service_healthy
-    image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
-    user: root
-    volumes:
-      - certs:/usr/share/filebeat/certs
-      - filebeatdata01:/usr/share/filebeat/data
-      - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
-      - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    restart: unless-stopped
-    environment:
-      - ELASTIC_USER=elastic
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - ELASTIC_HOSTS=https://es01:9200
-      - KIBANA_HOSTS=http://kibana:5601
-      - LOGSTASH_HOSTS=http://logstash01:9600
-    command:
-      - --strict.perms=false
-
-  metricbeat01:
-    container_name: metricbeat01
-    depends_on:
-      es01:
-        condition: service_healthy
-      kibana:
-        condition: service_healthy
-    image: docker.elastic.co/beats/metricbeat:${STACK_VERSION}
-    user: root
-    volumes:
-      - certs:/usr/share/metricbeat/certs
-      - metricbeatdata01:/usr/share/metricbeat/data
-      - "./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
-      - "/proc:/hostfs/proc:ro"
-      - "/:/hostfs:ro"
-    restart: unless-stopped
-    environment:
-      - ELASTIC_USER=elastic
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-      - ELASTIC_HOSTS=https://es01:9200
-      - KIBANA_HOSTS=http://kibana:5601
-      - LOGSTASH_HOSTS=http://logstash01:9600
+  
+  #filebeat01:
+  #  container_name: filebeat01
+  #  depends_on:
+  #    es01:
+  #      condition: service_healthy
+  #  image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
+  #  user: root
+  #  volumes:
+  #    - certs:/usr/share/filebeat/certs
+  #    - filebeatdata01:/usr/share/filebeat/data
+  #    - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+  #    - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+  #    - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  #  restart: unless-stopped
+  #  environment:
+  #    - ELASTIC_USER=elastic
+  #    - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+  #    - ELASTIC_HOSTS=https://es01:9200
+  #    - KIBANA_HOSTS=http://kibana:5601
+  #    - LOGSTASH_HOSTS=http://logstash01:9600
+  #  command:
+  #    - --strict.perms=false
+  #
+  #metricbeat01:
+  #  container_name: metricbeat01
+  #  depends_on:
+  #    es01:
+  #      condition: service_healthy
+  #    kibana:
+  #      condition: service_healthy
+  #  image: docker.elastic.co/beats/metricbeat:${STACK_VERSION}
+  #  user: root
+  #  volumes:
+  #    - certs:/usr/share/metricbeat/certs
+  #    - metricbeatdata01:/usr/share/metricbeat/data
+  #    - "./metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro"
+  #    - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  #    - "/sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro"
+  #    - "/proc:/hostfs/proc:ro"
+  #    - "/:/hostfs:ro"
+  #  restart: unless-stopped
+  #  environment:
+  #    - ELASTIC_USER=elastic
+  #    - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+  #    - ELASTIC_HOSTS=https://es01:9200
+  #    - KIBANA_HOSTS=http://kibana:5601
+  #    - LOGSTASH_HOSTS=http://logstash01:9600
 
   ########################### END OF ES STUFF
+  
   #ollama:
   #  container_name: ollama
   #  image: "ollama/ollama:latest"
@@ -242,6 +246,22 @@ services:
   #  environment:
   #    - OLLAMA_KEEP_ALIVE=24h
   #    - OLLAMA_HOST=0.0.0.0
+
+  #open-webui:
+  #  container_name: open-webui
+  #  image: ghcr.io/open-webui/open-webui:${WEBUI_DOCKER_TAG-main}
+  #  volumes:
+  #    - open-webui:/app/backend/data
+  #  depends_on:
+  #    - ollama
+  #  ports:
+  #    - ${OPEN_WEBUI_PORT-3000}:8080
+  #  environment:
+  #    - 'OLLAMA_BASE_URL=http://ollama:11434'
+  #  extra_hosts:
+  #    - host.docker.internal:host-gateway
+  #  restart: unless-stopped
+
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
