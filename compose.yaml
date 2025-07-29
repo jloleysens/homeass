@@ -17,6 +17,10 @@ volumes:
     driver: local
   open-webui:
     driver: local
+  nextcloud:
+    driver: local
+  nextclouddb:
+    driver: local
 
 networks:
   default:
@@ -24,6 +28,25 @@ networks:
     external: false
 
 services:
+  ## TRAEFIK
+  #traefik:
+  #  image: traefik:v2.5
+  #  container_name: traefik
+  #  command:
+  #    - "--api.insecure=true"  # Enable the Traefik dashboard (optional)
+  #    - "--providers.docker=true"
+  #    - "--entrypoints.web.address=:80"
+  #    - "--entrypoints.websecure.address=:443"
+  #    - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+  #    - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+  #    - "--certificatesresolvers.myresolver.acme.email=jloleysens@noone.com"
+  #    - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+  #  ports:
+  #    - "8080:8080"
+  #  volumes:
+  #    - "/var/run/docker.sock:/var/run/docker.sock"
+  #    - "./letsencrypt:/letsencrypt"
+
   ########################### START OF ES STUFF
   setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
@@ -276,3 +299,42 @@ services:
     restart: unless-stopped
     privileged: true
     network_mode: host
+
+  # Next cloud
+
+  nextclouddb:
+    mem_limit: 1gb
+    container_name: nextclouddb
+    image: mariadb:10.6
+    restart: always
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      - nextclouddb:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+
+  nextcloudapp:
+    mem_limit: 1gb
+    container_name: nextcloud
+    image: nextcloud
+    restart: always
+      #labels:
+      #  - "traefik.enable=true"
+      #  - "traefik.http.routers.myservice.rule=Host(`mahserver1:8080`)"
+      #  - "traefik.http.routers.myservice.entrypoints=websecure"
+      #  - "traefik.http.routers.myservice.tls.certresolver=myresolver"
+    ports:
+      - 8080:80
+    links:
+      - nextclouddb
+    volumes:
+      - nextcloud:/var/www/html
+      - ./nextcloud/config:/var/www/html/config:rw
+    environment:
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=nextclouddb
