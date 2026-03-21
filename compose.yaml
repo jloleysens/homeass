@@ -21,6 +21,10 @@ volumes:
     driver: local
   nextclouddb:
     driver: local
+  adguardhome_work:
+    driver: local
+  adguardhome_conf:
+    driver: local
 
 networks:
   default:
@@ -343,11 +347,13 @@ services:
     container_name: adguardhome
     image: adguard/adguardhome:latest
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "3000:3000/tcp" # first-run setup wizard
-      - "8088:80/tcp"   # AdGuard UI after setup
+      - "3000:3000/tcp" # first-run setup wizard (remove after setup)
+      - "8088:80/tcp"   # AdGuard UI
     volumes:
-      - ./adguardhome/work:/opt/adguardhome/work
-      - ./adguardhome/conf:/opt/adguardhome/conf
+      - adguardhome_work:/opt/adguardhome/work
+      - adguardhome_conf:/opt/adguardhome/conf
