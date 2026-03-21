@@ -352,7 +352,6 @@ services:
     ports:
       - "53:53/tcp"
       - "53:53/udp"
-      - "3000:3000/tcp" # first-run setup wizard (remove after setup)
       - "8088:80/tcp"   # AdGuard UI
     volumes:
       - adguardhome_work:/opt/adguardhome/work
