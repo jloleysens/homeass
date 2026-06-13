@@ -25,6 +25,8 @@ volumes:
     driver: local
   adguardhome_conf:
     driver: local
+  matter_data:
+    driver: local
 
 networks:
   default:
@@ -291,7 +293,7 @@ services:
 
   homeassistant:
     container_name: homeassistant
-    image: "ghcr.io/home-assistant/home-assistant:2026.3.1"
+    image: "ghcr.io/home-assistant/home-assistant:2026.4.4"
     volumes:
       - /home/jloleysens/config:/config
       - /etc/localtime:/etc/localtime:ro
@@ -356,3 +358,15 @@ services:
     volumes:
       - adguardhome_work:/opt/adguardhome/work
       - adguardhome_conf:/opt/adguardhome/conf
+
+  matter-server:
+    container_name: matter-server
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    restart: unless-stopped
+    network_mode: host
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - matter_data:/data
+    environment:
+      - TZ=Europe/Amsterdam
