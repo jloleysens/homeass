@@ -27,6 +27,12 @@ volumes:
     driver: local
   matter_data:
     driver: local
+  odysseus_chromadb:
+    driver: local
+  odysseus_searxng:
+    driver: local
+  odysseus_ntfy:
+    driver: local
 
 networks:
   default:
@@ -370,3 +376,104 @@ services:
       - matter_data:/data
     environment:
       - TZ=Europe/Amsterdam
+
+  odysseus:
+    container_name: odysseus
+    build:
+      context: ./odysseus
+    ports:
+      - "${ODYSSEUS_BIND:-0.0.0.0}:${ODYSSEUS_PORT:-7000}:7000"
+    volumes:
+      - ./odysseus-data/data:/app/data:z
+      - ./odysseus-data/logs:/app/logs:z
+      - ./odysseus-data/ssh:/app/.ssh:z
+      - ./odysseus-data/huggingface:/app/.cache/huggingface:z
+      - ./odysseus-data/local:/app/.local:z
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - LLM_HOST=${ODYSSEUS_LLM_HOST:-localhost}
+      - LLM_HOSTS=${ODYSSEUS_LLM_HOSTS:-}
+      - OPENAI_API_KEY=${ODYSSEUS_OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=${ODYSSEUS_OLLAMA_BASE_URL:-}
+      - RESEARCH_LLM_ENDPOINT=${ODYSSEUS_RESEARCH_LLM_ENDPOINT:-}
+      - SEARXNG_INSTANCE=http://odysseus-searxng:8080
+      - CHROMADB_HOST=odysseus-chromadb
+      - CHROMADB_PORT=8000
+      - DATABASE_URL=sqlite:///./data/app.db
+      - AUTH_ENABLED=true
+      - LOCALHOST_BYPASS=false
+      - ODYSSEUS_ADMIN_USER=${ODYSSEUS_ADMIN_USER:-admin}
+      - ODYSSEUS_ADMIN_PASSWORD=${ODYSSEUS_ADMIN_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ODYSSEUS_ALLOWED_ORIGINS:-http://localhost:7000,http://127.0.0.1:7000,http://192.168.240.50:7000,http://100.68.127.34:7000}
+      - SECURE_COOKIES=false
+      - PUID=1000
+      - PGID=1000
+    depends_on:
+      odysseus-searxng:
+        condition: service_healthy
+      odysseus-chromadb:
+        condition: service_started
+    restart: unless-stopped
+
+  odysseus-chromadb:
+    container_name: odysseus-chromadb
+    image: docker.io/chromadb/chroma:latest
+    ports:
+      - "127.0.0.1:8100:8000"
+    volumes:
+      - odysseus_chromadb:/chroma/chroma
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+    restart: unless-stopped
+
+  odysseus-searxng:
+    container_name: odysseus-searxng
+    image: docker.io/searxng/searxng:2026.5.31-7159b8aed
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -s /etc/searxng/settings.yml ] || grep -q 'odysseus-local-searxng-json-2026-05-30\|__SEARXNG_SECRET__' /etc/searxng/settings.yml; then
+          secret="$${SEARXNG_SECRET:-}"
+          if [ -z "$$secret" ]; then
+            secret="$$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+          fi
+          sed "s|__SEARXNG_SECRET__|$$secret|g" /tmp/searxng-settings.yml.template > /etc/searxng/settings.yml
+        fi
+        exec /usr/local/searxng/entrypoint.sh
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - odysseus_searxng:/etc/searxng
+      - ./odysseus/config/searxng/settings.yml:/tmp/searxng-settings.yml.template:ro,z
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080/
+      - SEARXNG_SECRET=${ODYSSEUS_SEARXNG_SECRET:-}
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/', timeout=5).read(1)\""]
+      interval: 5s
+      timeout: 6s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  odysseus-ntfy:
+    container_name: odysseus-ntfy
+    image: docker.io/binwiederhier/ntfy
+    command: serve
+    ports:
+      - "127.0.0.1:8091:80"
+    volumes:
+      - odysseus_ntfy:/var/cache/ntfy
+    environment:
+      - NTFY_BASE_URL=http://localhost:8091
+    restart: unless-stopped
